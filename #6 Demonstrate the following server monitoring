@@ -1,0 +1,111 @@
+#6 Demonstrate the following server monitoring.
+
+1. List the top 5 unique IP addresses accessing your Apache webserver.
+	When running a web server that can be accessed from an open or public network such as Internet, then it is always a good System Administration practice to monitor access to your server.
+The default path for Apache web server log is
+•	/var/log/apache/access.log
+•	/var/log/apache2/access.log
+•	/etc/httpd/logs/access_log
+
+Use the GUI or the terminal with the cd command to navigate your system to find where the logs are stored.
+To find out top 5 IP address accessing your Apache web server for domain, just run the following command.
+# awk '{ print $1}' access.log.2021-12-04 | sort | uniq -c | sort -nr | head -n 5
+Sample Output:
+1921 66.249.93.148
+1890 64.233.173.178
+1860 108.61.183.134
+1841 64.233.173.182
+1582 157.55.39.251
+In the command above:
+awk – prints the access.log.2021-12-04 file.
+sort – helps to sort lines in a access.log.2016-05-08 file, the -n option compares lines based on the numerical value of strings and -r option reverses the outcome of the comparisons.
+uniq – helps to report repeated lines and the -c option helps to prefix lines according to the number of occurrences.
+
+List the past 10-days 4XX results of Apache's access log file, sorted by date with their IP address.
+
+The conventional method for expressing the format of access log files is:
+"%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-agent}i\""
+This is a code for the most common things in each line of the log.
+Each % sign corresponds to a piece of information in the log:
+•	%h – The client’s IP address (the source of the access request).
+•	%l – This next entry may simply be a hyphen — that means no information was retrieved. This is the result of checking identd on the client.
+•	%u – Client’s userid, if the access request required http authentication.
+•	%t – Timestamp of the incoming request.
+•	\%r\ – Request line that was used. This tells you the http method (GET, POST, HEAD, etc.), the path to what was requested, and the http protocol being used.
+•	%>s – Status code that was returned from the server to the client.
+•	%b – Size of the resource that was requested.
+•	\"%{Referer}i\" – This tells you if the access came from clicking a link on another website, or other ways that the client was referred to your page.
+•	\"%{User-agent}i\" – Tells you information about the entity making the request, such as web browser, operating system, website source (in the case of a robot), etc.
+
+Top 5 Log Fields
+Here are some of the most valuable log fields when monitoring server health or for troubleshooting issues. You should consider including each of these in your Apache log format.
+HttpStatusCode: This will tell you the exact status of the response. You can read the full list of status codes, but here’s the short version:
+2xx is successful
+3xx is a redirection
+4xx is a client error (a bad request coming from the client or a request that’s not authorized)
+5xx is a server error (the request was valid but the server had a problem fulfilling it due to a processing error or timeout of some kind)
+UrlPath: Which page the user was trying to load.
+RemoteIPOrHost: The IP address making the request. Useful to drill down on traffic from a particular source.
+RequestTimeSeconds: How long it took for the request to be processed. This will give you a good idea of how fast or slow your site is. If your site is too slow, you’ll probably need to optimize your servers or your application.
+Unique_ID: Also commonly known as a request ID, this helps you search and trace a particular request through to your web application server.
+for debugging purposes we will be writing an additional log file. We will no longer be using the LogFormat directive, but instead defining the format together with the file on one line. This is a shortcut, if you want to use a specific format one time only.
+CustomLog logs/access-debug.log " %h \ [%{%Y-%m-%d %H:%M:%S}t.%{usec_frac}t] %{UNIQUE_ID}e\"%r\" %{Accept}i %{Content-Type}o"
+$> for N in {1..100}; do curl --silent --insecure https://localhost/index.html?n=${N}a >/dev/null; done
+$> for N in {1..100}; do PAYLOAD=$(uuid -n $N | xargs); \
+   curl --silent --data "payload=$PAYLOAD" --insecure https://localhost/index.html?n=${N}b >/dev/null; \done
+Sample Output
+
+127.0.0.1 - - [2019-01-31 05:59:35.594159] "GET /index.html?n=1a HTTP/1.1" 200 45 "-" "curl/7.58.0" … 
+"-" 53252 localhost 127.0.0.1 443 - - + "-" XFKAt7evwRxnTvzP--AjEAAAAAI TLSv1.2 … 
+ECDHE-RSA-AES256-GCM-SHA384 422 1463 -% 97 - - - - - - -
+127.0.0.1 - - [2019-01-31 05:59:35.612331] "GET /index.html?n=2a HTTP/1.1" 200 45 "-" "curl/7.58.0" …
+"-" 53254 localhost 127.0.0.1 443 - - + "-" XFKAt7evwRxnTvzP--AjEQAAAAg TLSv1.2 …
+ECDHE-RSA-AES256-GCM-SHA384 422 1463 -% 123 - - - - - - -
+127.0.0.1 - - [2019-01-31 05:59:35.634044] "GET /index.html?n=3a HTTP/1.1" 200 45 "-" "curl/7.58.0" …
+"-" 53256 localhost 127.0.0.1 443 - - + "-" XFKAt7evwRxnTvzP--AjEgAAAAc TLSv1.2 …
+ECDHE-RSA-AES256-GCM-SHA384 422 1463 -% 136 - - - - - - -
+127.0.0.1 - - [2019-01-31 05:59:35.652333] "GET /index.html?n=4a HTTP/1.1" 200 45 "-" "curl/7.58.0" …
+"-" 53258 localhost 127.0.0.1 443 - - + "-" XFKAt7evwRxnTvzP--AjEwAAAAs TLSv1.2 …
+ECDHE-RSA-AES256-GCM-SHA384 422 1463 -% 100 - - - - - - -
+127.0.0.1 - - [2019-01-31 05:59:35.669342] "GET /index.html?n=5a HTTP/1.1" 200 45 "-" "curl/7.58.0" …
+"-" 53260 localhost 127.0.0.1 443 - - + "-" XFKAt7evwRxnTvzP--AjFAAAAA4 TLSv1.2 …
+ECDHE-RSA-AES256-GCM-SHA384 422 1463 -% 101 - - - - - - -
+
+3. Write a utility script to view the top 10 disk-space users of a given path across multiple hosts.
+
+This shell script checks the disk space usage on a given remote machine and sends the output via a mail in a simple text once the system reaches the specified threshold.
+# vi /opt/scripts/disk-usage-multiple-1.sh
+
+#!/bin/sh
+SUBJECT="Disk Usage Report on "`date`""
+MESSAGE="/tmp/disk-usage.out"
+MESSAGE1="/tmp/disk-usage-1.out"
+TO="daygeek@gmail.com"
+echo "---------------------------------------------------------------------------------------------------" >> $MESSAGE1
+echo "HostName            Filesystem                Size Used Avail Use% Mounted on" >> $MESSAGE1
+echo "---------------------------------------------------------------------------------------------------" >> $MESSAGE1
+for server in `more /opt/scripts/servers.txt`
+do
+output=`ssh $server df -Ph | tail -n +2 | sed s/%//g | awk '{ if($5 > 80) print $0;}'`
+echo "$server: $output" >> $MESSAGE
+done
+cat $MESSAGE | grep G | column -t >> $MESSAGE1
+mail -s "$SUBJECT" "$TO" < $MESSAGE1
+rm $MESSAGE
+rm $MESSAGE1
+Run the script file once you have added the above script to a file.
+# sh /opt/scripts/disk-usage-multiple-1.sh
+You get an output like the one below.
+------------------------------------------------------------------------------------------------
+HostName           Filesystem                         Size  Used  Avail  Use%     Mounted on
+------------------------------------------------------------------------------------------------
+server01:         /dev/mapper/vg_root-lv_red          5.0G  4.3G  784M   85       /var/log/httpd
+server02:         /dev/mapper/vg_root-lv_var          5.8G  4.5G  1.1G   81       /var
+server03:         /dev/mapper/vg01-LogVol01           5.7G  4.5G  1003M  82       /usr
+server04:         /dev/mapper/vg01-LogVol04           4.9G  3.9G  711M   85       /usr
+server05:         /dev/mapper/vg_root-lv_u01          74G   56G   15G    80       /u01
+Finally add a cronjob to automate this. It will run every 10 minutes.
+# crontab -e
+*/10 * * * * /bin/bash /opt/scripts/disk-usage-multiple-1.sh
+
+
