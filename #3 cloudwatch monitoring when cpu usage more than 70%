@@ -1,0 +1,40 @@
+#3 Demonstrate how you can alert a support team when instance or server RAM usage is greater than 60%, disk space usage is greater than 80%, or CPU usage greater than 70%.
+
+Your choice of using instancing, monitoring, and alert tool mechanisms like the following:
+
+* EC2 Instance
+* Cloudwatch
+* SNS
+* Any website endpoint
+* Uptime Robot
+* Slack channel
+
+
+With CloudWatch you can automatically receive usage metric notifications when you reach a specific threshold. As an example, an alarm when any EC2 instance reaches 70% .
+Step 1: Browse the AWS console and access the CloudWatch service.
+
+ 
+
+2.At the top left go to ALARM and click the Create Alarm button. 
+ 
+
+3.Click the Select Metric button to define the alarm metrics that will be created.
+ 
+4.Following the example CPU usage, on the All metrics tab select EC2 metrics. 
+ 
+5. For CPU utilization metrics, select the option “Metrics per instance”, then select the resource you want to monitor and the “CPU Utilization”. Finally, click Select Metric.
+ 
+6. In this screen configure the metrics to create the alarm. On our example, select Statistic Maximum and Period 5 minutes. 
+7.Still on this screen, set the alarm notification. On our example Static Threshold Type, Whenever CPUUtilization is Greater than 80. 
+8.Finally, configure additional settings to create alarm. On our example if 3 evaluations are above 80% CPU within a total of 5 evaluations then the Alarm should be triggered. Click on Next. 
+ 
+9. On Notification choose the alarm state for the notification to be sent: 
+OK –  The metric or expression is within the defined threshold.
+Alarm – The metric or expression is outside of the defined threshold.
+INSUFFICIENT_DATA – The alarm has just started, the metric is not available, or not enough data is available for the metric to determine the alarm state.
+Set the channel for notification to be sent – topic SNS
+On the Add Notification button is possible add more than one notification.
+On the example we set a notification and selected to receive notifications via SNS topic.
+Also, we added another notification when the alarm returns to the OK status and also with sending topic via SNS. 
+After those settings, click Next.
+
