@@ -1,0 +1,194 @@
+
+#1 Deploy a Flask-based application in a Docker container using an Nginx proxy in a separate container.
+
+Ensure that there is a feature to scale the number of Flask containers up and down with Nginx automatically proxying them. Feel free to pick your own orchestration framework.
+
+Running Nginx with docker
+Lets start by running a simple nginx container listening on our localhost's default port(80). 
+
+Next we will pull nginx container image from docker hub with the following command:
+docker pull nginx:1.13.7
+We can see the downloaded image
+$ docker images
+
+REPOSITORY                         TAG                 IMAGE ID            CREATED             SIZE
+nginx                                    1.13.7              f895b3fb9e30        5 weeks ago         108MB
+
+Once we have nginx image, we run the container with an exposed port.
+$ docker run --name nginx_test -d -p 80:80 nginx:1.13.7
+66de8420687d0687f6c923269ccd1554c0d247f230dc3d064c10fcd8a099fb5d
+$ docker ps
+CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                NAMES
+66de8420687d        nginx:1.13.7        "nginx -g 'daemon of…"   8 minutes ago       Up 8 minutes        0.0.0.0:80->80/tcp   nginx_test
+The -d in the command runs our container in daemon mode (in background) without blocking our shell.
+Note that the "PORTS" columns says 0.0.0.0:80->80/tcp which means we have mapped and exposed the port 80 of our container to our host machine. Hence we should now be able to access nginx on localhost.
+We can see that here:
+ 
+Stop the running container
+$ docker stop nginx_test
+We got nginx working with a docker container. 
+docker-compose
+We have more than one container, in our use case:
+1.	nginx
+2.	python
+we use docker-compose :Compose is a tool for defining and running multi-container Docker applications.
+Firstly, install docker compose .Next, we'll write a docker-compose.yml file. First start by replicating our work until now, getting an nginx container working on localhost, but this time using docker-compose
+docker-compose.yml
+version: '3.1'
+services:
+    nginx:
+        image: nginx:1.13.7
+        ports:
+            - 80:80
+
+test it: docker-compose up -d nginx. You can now see on localhost the same nginx welcome page.
+Also a docker ps will also give you a similar output.
+$ docker ps
+CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                NAMES
+fc6308ec4ff6        nginx:1.13.7        "nginx -g 'daemon of…"   4 minutes ago       Up 3 seconds        0.0.0.0:80->80/tcp   code_nginx_1
+Next step is to make our flask container and run it with docker-compose.
+The python container: pull the python container:
+$ docker pull python:3
+Now let's write a Dockerfile for installling our dependencies for python.
+
+Dockerfile:
+FROM python:3
+RUN pip install flask
+The build process will install all the dependencies of flask itself. Now that we can hook up the Dockerfile with a simple hello world flask program and make sure everything's working. We'll put this file inside code directory so that we are able to mount it in our container.
+code/main.py
+from flask import Flask
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return 'Hello world!'
+Now let's set this up with docker-compose as well
+docker-compose.yml:
+version: '3.1'
+services:
+    nginx:
+        image: nginx:1.13.7
+        container_name: nginx
+        ports:
+            - 80:80
+    flask:
+        build:
+            context: ./
+            dockerfile: Dockerfile
+        image: flask:0.0.1
+        container_name: flask
+        volumes:
+            - ./:/code/
+        environment:
+            - FLASK_APP=/code/main.py
+        command: flask run --host=0.0.0.0
+        ports:
+            - 8080:5000
+
+Let's test it:
+First stop the previous running container of nginx
+$ docker stop <your container name>
+Now, lets start the cluster with docker-compose
+$ docker-compose up -d
+Starting flask ...                                   
+Starting nginx ... done
+$ docker ps
+CONTAINER ID        IMAGE               COMMAND                  CREATED              STATUS              PORTS                    NAMES                                                                              
+f0f5bd9a2da1        nginx:1.13.7        "nginx -g 'daemon of…"   About a minute ago   Up 15 seconds       0.0.0.0:80->80/tcp       nginx                                                                              
+9b065e02145b        flask:0.0.1         "flask run --host=0.…"   About a minute ago   Up 15 seconds       0.0.0.0:8080->5000/tcp   flask                                                                              
+Now that we have both the nginx and flask containers running, we can verify that everything works fine in both the containers. All we need to do now is configure nginx to reverse proxy our flask container
+Configuring nginx
+We want to basically proxy_pass all our traffic coming at / to our flask container.
+lets start with our nginx.conf file
+server {
+    listen 80;
+    server_name localhost;
+
+    location / {
+        proxy_pass http://flask-app:5000/;
+        proxy_set_header Host "localhost";
+    }
+}
+All we have done is:
+1.	Declared the server layer, which tells to listen to port 80.
+2.	Given the server_name, this is particularly useful when setting a domain name, in our case though localhost is fine enough.
+3.	Next we come on location directive of nginx. We can have a regex pattern to match after the location. In our case though / is good enough. We are currently reverse-proxying entire content to flask app.
+4.	The proxy_pass directive takes as argument the url to which we are proxying. In our case we will alias our flask container in the docker network as flask-app. This makes our flask app accessible at http://flask-app:5000/ from inside the nginx container.
+5.	The proxy_set_header will set the __Host header__ for the request between our nginx and flask, this helps to avoid certain errors, specially if one is using Django instead of flask, the ALLOWED_HOSTS setting would require this Host header.
+we mount this file in our nginx container with the following line
+nginx:
+    volumes:
+        - ./nginx.conf:/etc/nginx/conf.d/default.conf
+This will overwrite our default nginx configuration file inside the container.
+Setting up docker network
+At the bottom of docker-compose file, add this line:
+networks:
+    my-network:
+In the flask section add the following lines:
+networks:
+    my-network:
+        aliases:
+            - flask-app
+This has added both our containers to a network called my-network with the flask container available on that network with the alias flask-app. All we have to do now is list flask container as a dependency for nginx container, so that it automatically starts the flask app.
+Also note that now that we have completed the setup, we do not require to expose port for flask container, so we can get rid of the following lines from flask's section
+ports:
+  - 8080:5000
+To sum up here are final versions of the files:
+docker-compose.yml
+version: '3.1'
+services:
+    nginx:
+        image: nginx:1.13.7
+        container_name: nginx
+        depends_on:
+            - flask
+        volumes:
+            - ./nginx.conf:/etc/nginx/conf.d/default.conf
+        networks:
+            - my-network
+        ports:
+            - 80:80
+    flask:
+        build:
+            context: ./
+            dockerfile: Dockerfile
+        image: flask:0.0.1
+        container_name: flask
+        volumes:
+            - ./:/code/
+        environment:
+            - FLASK_APP=/code/main.py
+        command: flask run --host=0.0.0.0
+        networks:
+            my-network:
+                aliases:
+                    - flask-app
+        ports:
+            - 8080:5000
+networks:
+    my-network:
+
+Dockerfile
+FROM python:3
+RUN pip install flask
+nginx.conf
+server {
+    listen 80;
+    server_name localhost;
+    location / {
+        proxy_pass http://flask-app:5000/;
+        proxy_set_header Host "localhost";
+    }
+}
+
+Let's run it finally
+$ docker-compose up -d nginx
+Starting flask ... done
+Starting nginx ... done
+
+$ docker ps
+CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                    NAMES
+874454f2ceb1        nginx:1.13.7        "nginx -g 'daemon of…"   13 minutes ago      Up 20 seconds       0.0.0.0:80->80/tcp       nginx
+502fc6cc9603        flask:0.0.1         "flask run --host=0.…"   6 weeks ago         Up 23 seconds       0.0.0.0:8080->5000/tcp   flask
+Note that since we listed flask as a dependency in nginx container, docker-compose first starts the flask container for us and then nginx. This works for a chain of such dependencies.
+
